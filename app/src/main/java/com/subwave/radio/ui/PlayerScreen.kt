@@ -16,66 +16,73 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
         mutableStateOf(com.subwave.radio.data.ServerPrefs.getLastServer(viewModel.contextRef) ?: "")
     }
 
-    Box(
+    Surface(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 480.dp)
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            AsyncImage(
-                model = viewModel.nowPlaying.artworkUri,
-                contentDescription = "Artist artwork",
-                modifier = Modifier.size(120.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(text = viewModel.nowPlaying.title, style = MaterialTheme.typography.titleLarge)
-            Text(text = viewModel.nowPlaying.subtitle, style = MaterialTheme.typography.bodyMedium)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            when (val state = viewModel.connectionState) {
-                is ConnectionState.Failed -> Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AsyncImage(
+                    model = viewModel.nowPlaying.artworkUri,
+                    contentDescription = "Artist artwork",
+                    modifier = Modifier.size(120.dp)
                 )
-                ConnectionState.Connecting -> CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                else -> {}
-            }
 
-            OutlinedTextField(
-                value = serverInput,
-                onValueChange = { serverInput = it },
-                label = { Text("Server address") },
-                placeholder = { Text("e.g. stream.example.com") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth()
-            )
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Text(text = viewModel.nowPlaying.title, style = MaterialTheme.typography.titleLarge)
+                Text(text = viewModel.nowPlaying.subtitle, style = MaterialTheme.typography.bodyMedium)
 
-            Button(
-                onClick = { viewModel.playFromUserInput(serverInput) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Connect")
-            }
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(8.dp))
+                when (val state = viewModel.connectionState) {
+                    is ConnectionState.Failed -> Text(
+                        text = state.message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    ConnectionState.Connecting -> CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    else -> {}
+                }
 
-            OutlinedButton(
-                onClick = { viewModel.stop() },
-                enabled = viewModel.connectionState != ConnectionState.Idle,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Stop")
+                if (viewModel.connectionState != ConnectionState.Connected) {
+                    OutlinedTextField(
+                        value = serverInput,
+                        onValueChange = { serverInput = it },
+                        label = { Text("Server address") },
+                        placeholder = { Text("e.g. stream.example.com") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { viewModel.playFromUserInput(serverInput) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Connect")
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.stop() },
+                    enabled = viewModel.connectionState != ConnectionState.Idle,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Stop")
+                }
             }
         }
     }

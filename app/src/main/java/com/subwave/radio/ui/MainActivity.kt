@@ -5,12 +5,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import com.subwave.radio.player.RadioPlaybackService
+
+private val SubwaveBackground = Color(0xFF100E0C)
 
 class MainActivity : ComponentActivity() {
 
@@ -39,7 +44,9 @@ class MainActivity : ComponentActivity() {
             viewModel.reconnectToLastServerIfAvailable()
 
             setContent {
-                PlayerScreen(viewModel = viewModel)
+                MaterialTheme(colorScheme = darkColorScheme(background = SubwaveBackground)) {
+                    PlayerScreen(viewModel = viewModel)
+                }
             }
         }, MoreExecutors.directExecutor())
     }
