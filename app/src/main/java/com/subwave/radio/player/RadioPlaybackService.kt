@@ -1,6 +1,8 @@
 package com.subwave.radio.player
 
 import android.net.Uri
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Metadata
@@ -109,8 +111,17 @@ class RadioPlaybackService : MediaLibraryService() {
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(httpDataSourceFactory)
 
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
+            // Lets ExoPlayer pause for phone calls/other audio and resume
+            // automatically once focus is regained, instead of playing
+            // through or over them.
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             .build()
 
         player.addListener(object : Player.Listener {
