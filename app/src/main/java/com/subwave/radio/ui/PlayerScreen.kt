@@ -22,16 +22,15 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.34f)
+                .widthIn(max = 480.dp)
+                .fillMaxWidth()
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AsyncImage(
                 model = viewModel.nowPlaying.artworkUri,
                 contentDescription = "Artist artwork",
-                modifier = Modifier
-                    .fillMaxWidth(0.25f)
-                    .aspectRatio(1f)
+                modifier = Modifier.size(120.dp)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
