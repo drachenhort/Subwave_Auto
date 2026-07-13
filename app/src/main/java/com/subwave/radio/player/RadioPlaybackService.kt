@@ -29,6 +29,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val ANDROID_AUTO_PACKAGE = "com.google.android.projection.gearhead"
+
 /**
  * Single-stream Icecast playback service.
  *
@@ -135,6 +137,16 @@ class RadioPlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(
                 MediaSession.MediaItemsWithStartPosition(ImmutableList.of(mediaItem), 0, 0L)
             )
+        }
+
+        // Unplugging the phone tears down Android Auto's connection to this
+        // session; stop playback rather than keep streaming in the
+        // background with no car display attached.
+        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            if (controller.packageName == ANDROID_AUTO_PACKAGE) {
+                player.stop()
+                player.clearMediaItems()
+            }
         }
     }
 

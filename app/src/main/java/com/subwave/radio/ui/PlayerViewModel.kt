@@ -72,6 +72,16 @@ class PlayerViewModel(
                     artworkUri = mediaMetadata.artworkUri ?: fallbackArtworkUri
                 )
             }
+
+            // Keeps the UI in sync if playback is stopped from outside this
+            // ViewModel - e.g. RadioPlaybackService stopping itself when
+            // Android Auto disconnects (phone unplugged from the car).
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_IDLE) {
+                    connectionState = ConnectionState.Idle
+                    nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
+                }
+            }
         })
     }
 
