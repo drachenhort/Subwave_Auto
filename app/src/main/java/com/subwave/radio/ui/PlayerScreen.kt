@@ -55,22 +55,30 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
                 }
 
                 if (viewModel.connectionState != ConnectionState.Connected) {
-                    OutlinedTextField(
-                        value = serverInput,
-                        onValueChange = { serverInput = it },
-                        label = { Text("Server address") },
-                        placeholder = { Text("e.g. stream.example.com") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (viewModel.requiresParkedMode) {
+                        Text(
+                            text = "Pull over and park to change the server address.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = serverInput,
+                            onValueChange = { serverInput = it },
+                            label = { Text("Server address") },
+                            placeholder = { Text("e.g. stream.example.com") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = { viewModel.playFromUserInput(serverInput) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Connect")
+                        Button(
+                            onClick = { viewModel.playFromUserInput(serverInput) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Connect")
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

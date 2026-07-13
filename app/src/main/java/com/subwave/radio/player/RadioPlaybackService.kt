@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.subwave.radio.R
+import com.subwave.radio.data.ServerPrefs
 import com.subwave.radio.data.TrackMetadataLookup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,42 @@ class RadioPlaybackService : MediaLibraryService() {
                 .build()
             return Futures.immediateFuture(
                 LibraryResult.ofItemList(ImmutableList.of(streamItem), params)
+            )
+        }
+
+        // Called when the system wants to resume playback on its own - e.g.
+        // "Hey Google, play Subwave", or Android Auto's resume affordance -
+        // without the phone app ever having been opened this session.
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val rawServer = ServerPrefs.getLastServer(this@RadioPlaybackService)
+                ?: return Futures.immediateFailedFuture(
+                    UnsupportedOperationException("No saved server address")
+                )
+
+            val streamUrl = try {
+                buildIcecastStreamUrl(rawServer)
+            } catch (e: IllegalArgumentException) {
+                return Futures.immediateFailedFuture(e)
+            }
+            currentStreamUrl = streamUrl
+
+            val mediaItem = MediaItem.Builder()
+                .setMediaId("live_stream")
+                .setUri(streamUrl)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle("Loading…")
+                        .setArtworkUri(fallbackArtworkUri)
+                        .setIsPlayable(true)
+                        .build()
+                )
+                .build()
+
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(ImmutableList.of(mediaItem), 0, 0L)
             )
         }
     }

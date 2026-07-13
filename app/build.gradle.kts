@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val localSdkDir: String = Properties().apply {
+    val propsFile = rootProject.file("local.properties")
+    if (propsFile.exists()) {
+        propsFile.inputStream().use { load(it) }
+    }
+}.getProperty("sdk.dir") ?: System.getenv("ANDROID_HOME") ?: ""
 
 android {
     namespace = "com.subwave.radio"
@@ -60,4 +69,8 @@ dependencies {
 
     // Async image loading (artist artwork)
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // android.car platform stub, for detecting driving-state UX restrictions
+    // on Automotive OS. Never packaged; the real classes come from the OS.
+    compileOnly(files("$localSdkDir/platforms/android-35/optional/android.car.jar"))
 }

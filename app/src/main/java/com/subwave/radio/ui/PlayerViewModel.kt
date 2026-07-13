@@ -1,6 +1,7 @@
 package com.subwave.radio.ui
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.subwave.radio.R
 import com.subwave.radio.data.ServerPrefs
+import com.subwave.radio.player.CarDrivingState
 import com.subwave.radio.player.buildIcecastStreamUrl
 import com.subwave.radio.player.getReadableErrorMessage
 
@@ -44,6 +46,17 @@ class PlayerViewModel(
 
     var nowPlaying: NowPlaying by mutableStateOf(NowPlaying(artworkUri = fallbackArtworkUri))
         private set
+
+    /** True when the car requires distraction-optimized UI (i.e. is moving). */
+    var requiresParkedMode: Boolean by mutableStateOf(false)
+        private set
+
+    private val carDrivingState: CarDrivingState? =
+        if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            CarDrivingState(context) { requiresParkedMode = it }
+        } else {
+            null
+        }
 
     init {
         // RadioPlaybackService owns ICY (in-stream) metadata handling and
@@ -116,5 +129,10 @@ class PlayerViewModel(
         player.clearMediaItems()
         connectionState = ConnectionState.Idle
         nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
+    }
+
+    override fun onCleared() {
+        carDrivingState?.release()
+        super.onCleared()
     }
 }

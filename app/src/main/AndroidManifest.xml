@@ -15,6 +15,10 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
+        <uses-library
+            android:name="android.car"
+            android:required="false" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
