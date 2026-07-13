@@ -16,65 +16,70 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
         mutableStateOf(com.subwave.radio.data.ServerPrefs.getLastServer(viewModel.contextRef) ?: "")
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        AsyncImage(
-            model = viewModel.nowPlaying.artworkUri,
-            contentDescription = "Artist artwork",
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(text = viewModel.nowPlaying.title, style = MaterialTheme.typography.titleLarge)
-        Text(text = viewModel.nowPlaying.subtitle, style = MaterialTheme.typography.bodyMedium)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        when (val state = viewModel.connectionState) {
-            is ConnectionState.Failed -> Text(
-                text = state.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                .fillMaxWidth(0.34f)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AsyncImage(
+                model = viewModel.nowPlaying.artworkUri,
+                contentDescription = "Artist artwork",
+                modifier = Modifier
+                    .fillMaxWidth(0.25f)
+                    .aspectRatio(1f)
             )
-            ConnectionState.Connecting -> CircularProgressIndicator(modifier = Modifier.size(16.dp))
-            else -> {}
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = serverInput,
-            onValueChange = { serverInput = it },
-            label = { Text("Server address") },
-            placeholder = { Text("e.g. stream.example.com") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth()
-        )
+            Text(text = viewModel.nowPlaying.title, style = MaterialTheme.typography.titleLarge)
+            Text(text = viewModel.nowPlaying.subtitle, style = MaterialTheme.typography.bodyMedium)
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = { viewModel.playFromUserInput(serverInput) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Connect")
-        }
+            when (val state = viewModel.connectionState) {
+                is ConnectionState.Failed -> Text(
+                    text = state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                ConnectionState.Connecting -> CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                else -> {}
+            }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        OutlinedButton(
-            onClick = { viewModel.stop() },
-            enabled = viewModel.connectionState != ConnectionState.Idle,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Stop")
+            OutlinedTextField(
+                value = serverInput,
+                onValueChange = { serverInput = it },
+                label = { Text("Server address") },
+                placeholder = { Text("e.g. stream.example.com") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { viewModel.playFromUserInput(serverInput) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Connect")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = { viewModel.stop() },
+                enabled = viewModel.connectionState != ConnectionState.Idle,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Stop")
+            }
         }
     }
 }
