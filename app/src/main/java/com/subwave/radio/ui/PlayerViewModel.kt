@@ -7,22 +7,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.Metadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.extractor.metadata.icy.IcyInfo
 import com.subwave.radio.R
 import com.subwave.radio.data.ServerPrefs
-import com.subwave.radio.data.TrackMetadataLookup
 import com.subwave.radio.player.buildIcecastStreamUrl
 import com.subwave.radio.player.getReadableErrorMessage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.net.URI
 
 sealed class ConnectionState {
     object Idle : ConnectionState()
@@ -39,8 +31,7 @@ data class NowPlaying(
 
 class PlayerViewModel(
     private val player: Player,
-    private val context: Context,
-    private val metadataLookup: TrackMetadataLookup = TrackMetadataLookup()
+    private val context: Context
 ) : ViewModel() {
 
     val contextRef: Context get() = context
@@ -54,17 +45,19 @@ class PlayerViewModel(
     var nowPlaying: NowPlaying by mutableStateOf(NowPlaying(artworkUri = fallbackArtworkUri))
         private set
 
-    private var hasReceivedTrackMetadata = false
-
     init {
+        // RadioPlaybackService owns ICY (in-stream) metadata handling and
+        // republishes it as the current MediaItem's MediaMetadata, which -
+        // unlike raw Player.Listener.onMetadata events - is synced to this
+        // MediaController automatically.
         player.addListener(object : Player.Listener {
-            override fun onMetadata(metadata: Metadata) {
-                for (i in 0 until metadata.length()) {
-                    val entry = metadata.get(i)
-                    if (entry is IcyInfo) {
-                        entry.title?.takeIf { it.isNotBlank() }?.let(::handleRawIcyString)
-                    }
-                }
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                val title = mediaMetadata.title?.toString() ?: return
+                nowPlaying = NowPlaying(
+                    title = title,
+                    subtitle = mediaMetadata.artist?.toString().orEmpty(),
+                    artworkUri = mediaMetadata.artworkUri ?: fallbackArtworkUri
+                )
             }
         })
     }
@@ -77,14 +70,7 @@ class PlayerViewModel(
             return
         }
 
-        val streamHost = try {
-            URI(streamUrl).host
-        } catch (e: Exception) {
-            null
-        } ?: "live stream"
-
         connectionState = ConnectionState.Connecting
-        hasReceivedTrackMetadata = false
         nowPlaying = NowPlaying(title = "Loading…", artworkUri = fallbackArtworkUri)
 
         val mediaItem = MediaItem.Builder()
@@ -102,9 +88,6 @@ class PlayerViewModel(
                 if (state == Player.STATE_READY) {
                     connectionState = ConnectionState.Connected
                     ServerPrefs.saveLastServer(context, rawUrl)
-                    if (!hasReceivedTrackMetadata) {
-                        applyFallbackNowPlaying(streamHost)
-                    }
                     player.removeListener(this)
                 }
             }
@@ -133,55 +116,5 @@ class PlayerViewModel(
         player.clearMediaItems()
         connectionState = ConnectionState.Idle
         nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
-    }
-
-    /** Used when the stream is connected but never sends ICY track metadata. */
-    private fun applyFallbackNowPlaying(streamHost: String) {
-        val title = "Live: $streamHost"
-        val subtitle = "Streaming now"
-
-        nowPlaying = NowPlaying(title = title, subtitle = subtitle, artworkUri = fallbackArtworkUri)
-
-        val metadata = MediaMetadata.Builder()
-            .setTitle(title)
-            .setArtist(subtitle)
-            .setArtworkUri(fallbackArtworkUri)
-            .build()
-
-        player.currentMediaItem?.let { currentItem ->
-            val updatedItem = currentItem.buildUpon().setMediaMetadata(metadata).build()
-            player.replaceMediaItem(0, updatedItem)
-        }
-    }
-
-    private fun handleRawIcyString(raw: String) {
-        hasReceivedTrackMetadata = true
-        val (artist, title) = metadataLookup.parseIcyString(raw)
-        fetchEnrichedMetadata(artist, title)
-    }
-
-    private fun fetchEnrichedMetadata(artist: String, title: String) {
-        viewModelScope.launch {
-            val result = try {
-                withContext(Dispatchers.IO) { metadataLookup.query(artist, title) }
-            } catch (e: Exception) {
-                null
-            }
-
-            val artworkUri = result?.artworkUrl?.let(Uri::parse) ?: fallbackArtworkUri
-
-            nowPlaying = NowPlaying(title = title, subtitle = artist, artworkUri = artworkUri)
-
-            val metadata = MediaMetadata.Builder()
-                .setTitle(title)
-                .setArtist(artist)
-                .setArtworkUri(artworkUri)
-                .build()
-
-            player.currentMediaItem?.let { currentItem ->
-                val updatedItem = currentItem.buildUpon().setMediaMetadata(metadata).build()
-                player.replaceMediaItem(0, updatedItem)
-            }
-        }
     }
 }
