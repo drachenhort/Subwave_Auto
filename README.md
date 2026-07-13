@@ -1,5 +1,7 @@
 # Subwave Auto
 
+Player to connect to Subwave using Android Auto.
+
 Android app that streams a single Icecast station, shows the current artist
 artwork/track/release year, and supports Android Auto.
 
