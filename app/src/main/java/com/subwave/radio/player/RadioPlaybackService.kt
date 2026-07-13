@@ -1,6 +1,11 @@
 package com.subwave.radio.player
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
+import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -141,12 +146,23 @@ class RadioPlaybackService : MediaLibraryService() {
 
         // Unplugging the phone tears down Android Auto's connection to this
         // session; stop playback rather than keep streaming in the
-        // background with no car display attached.
+        // background with no car display attached. Kept as a second signal
+        // alongside the power-disconnect receiver below - Android Auto's own
+        // teardown timing isn't reliable enough to depend on alone.
         override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
             if (controller.packageName == ANDROID_AUTO_PACKAGE) {
-                player.stop()
-                player.clearMediaItems()
+                stopPlayback()
             }
+        }
+    }
+
+    // The same USB cable that carries Android Auto's data connection also
+    // carries power in virtually every car setup, so losing external power
+    // is a far more immediate, hardware-level signal that the phone was
+    // unplugged than waiting on Android Auto's own app to disconnect.
+    private val powerDisconnectedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            stopPlayback()
         }
     }
 
@@ -195,6 +211,18 @@ class RadioPlaybackService : MediaLibraryService() {
         })
 
         mediaSession = MediaLibrarySession.Builder(this, player, librarySessionCallback).build()
+
+        ContextCompat.registerReceiver(
+            this,
+            powerDisconnectedReceiver,
+            IntentFilter(Intent.ACTION_POWER_DISCONNECTED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    private fun stopPlayback() {
+        player.stop()
+        player.clearMediaItems()
     }
 
     private fun applyFallbackNowPlaying() {
@@ -242,6 +270,7 @@ class RadioPlaybackService : MediaLibraryService() {
     fun getPlayer(): ExoPlayer = player
 
     override fun onDestroy() {
+        unregisterReceiver(powerDisconnectedReceiver)
         serviceScope.cancel()
         mediaSession.release()
         player.release()
