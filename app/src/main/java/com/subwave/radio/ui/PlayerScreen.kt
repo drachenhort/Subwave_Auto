@@ -66,5 +66,15 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
         ) {
             Text("Connect")
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { viewModel.stop() },
+            enabled = viewModel.connectionState != ConnectionState.Idle,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Stop")
+        }
     }
 }

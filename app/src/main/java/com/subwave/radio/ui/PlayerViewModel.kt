@@ -114,6 +114,14 @@ class PlayerViewModel(
         ServerPrefs.getLastServer(context)?.let { playFromUserInput(it) }
     }
 
+    /** Stops playback and releases the stream, without closing the app. */
+    fun stop() {
+        player.stop()
+        player.clearMediaItems()
+        connectionState = ConnectionState.Idle
+        nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
+    }
+
     private fun handleRawIcyString(raw: String) {
         val (artist, title) = metadataLookup.parseIcyString(raw)
         fetchEnrichedMetadata(artist, title)
