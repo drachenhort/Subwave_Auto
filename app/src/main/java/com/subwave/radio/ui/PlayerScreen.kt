@@ -50,8 +50,6 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
                 else -> {}
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
             OutlinedTextField(
                 value = serverInput,
                 onValueChange = { serverInput = it },

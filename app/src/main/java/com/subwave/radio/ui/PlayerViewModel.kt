@@ -22,6 +22,7 @@ import com.subwave.radio.player.getReadableErrorMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
 
 sealed class ConnectionState {
     object Idle : ConnectionState()
@@ -53,6 +54,8 @@ class PlayerViewModel(
     var nowPlaying: NowPlaying by mutableStateOf(NowPlaying(artworkUri = fallbackArtworkUri))
         private set
 
+    private var hasReceivedTrackMetadata = false
+
     init {
         player.addListener(object : Player.Listener {
             override fun onMetadata(metadata: Metadata) {
@@ -74,7 +77,14 @@ class PlayerViewModel(
             return
         }
 
+        val streamHost = try {
+            URI(streamUrl).host
+        } catch (e: Exception) {
+            null
+        } ?: "live stream"
+
         connectionState = ConnectionState.Connecting
+        hasReceivedTrackMetadata = false
         nowPlaying = NowPlaying(title = "Loading…", artworkUri = fallbackArtworkUri)
 
         val mediaItem = MediaItem.Builder()
@@ -92,6 +102,9 @@ class PlayerViewModel(
                 if (state == Player.STATE_READY) {
                     connectionState = ConnectionState.Connected
                     ServerPrefs.saveLastServer(context, rawUrl)
+                    if (!hasReceivedTrackMetadata) {
+                        applyFallbackNowPlaying(streamHost)
+                    }
                     player.removeListener(this)
                 }
             }
@@ -122,7 +135,27 @@ class PlayerViewModel(
         nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
     }
 
+    /** Used when the stream is connected but never sends ICY track metadata. */
+    private fun applyFallbackNowPlaying(streamHost: String) {
+        val title = "Live: $streamHost"
+        val subtitle = "Streaming now"
+
+        nowPlaying = NowPlaying(title = title, subtitle = subtitle, artworkUri = fallbackArtworkUri)
+
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(subtitle)
+            .setArtworkUri(fallbackArtworkUri)
+            .build()
+
+        player.currentMediaItem?.let { currentItem ->
+            val updatedItem = currentItem.buildUpon().setMediaMetadata(metadata).build()
+            player.replaceMediaItem(0, updatedItem)
+        }
+    }
+
     private fun handleRawIcyString(raw: String) {
+        hasReceivedTrackMetadata = true
         val (artist, title) = metadataLookup.parseIcyString(raw)
         fetchEnrichedMetadata(artist, title)
     }
@@ -135,14 +168,13 @@ class PlayerViewModel(
                 null
             }
 
-            val subtitle = if (result?.year != null) "$artist · ${result.year}" else artist
             val artworkUri = result?.artworkUrl?.let(Uri::parse) ?: fallbackArtworkUri
 
-            nowPlaying = NowPlaying(title = title, subtitle = subtitle, artworkUri = artworkUri)
+            nowPlaying = NowPlaying(title = title, subtitle = artist, artworkUri = artworkUri)
 
             val metadata = MediaMetadata.Builder()
                 .setTitle(title)
-                .setArtist(subtitle)
+                .setArtist(artist)
                 .setArtworkUri(artworkUri)
                 .build()
 
