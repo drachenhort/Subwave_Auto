@@ -144,6 +144,19 @@ class RadioPlaybackService : MediaLibraryService() {
             )
         }
 
+        // Tracks whether Android Auto currently holds a controller connection,
+        // so the power-disconnect receiver below can tell a real car unplug
+        // apart from unrelated charger events during ordinary phone use.
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            if (controller.packageName == ANDROID_AUTO_PACKAGE) {
+                isAndroidAutoConnected = true
+            }
+            return super.onConnect(session, controller)
+        }
+
         // Unplugging the phone tears down Android Auto's connection to this
         // session; stop playback rather than keep streaming in the
         // background with no car display attached. Kept as a second signal
@@ -151,18 +164,25 @@ class RadioPlaybackService : MediaLibraryService() {
         // teardown timing isn't reliable enough to depend on alone.
         override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
             if (controller.packageName == ANDROID_AUTO_PACKAGE) {
+                isAndroidAutoConnected = false
                 stopPlayback()
             }
         }
     }
 
+    private var isAndroidAutoConnected = false
+
     // The same USB cable that carries Android Auto's data connection also
     // carries power in virtually every car setup, so losing external power
     // is a far more immediate, hardware-level signal that the phone was
-    // unplugged than waiting on Android Auto's own app to disconnect.
+    // unplugged than waiting on Android Auto's own app to disconnect. Only
+    // acts on it while Android Auto is actually connected, so unplugging a
+    // charger during ordinary phone-only playback doesn't stop the stream.
     private val powerDisconnectedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            stopPlayback()
+            if (isAndroidAutoConnected) {
+                stopPlayback()
+            }
         }
     }
 

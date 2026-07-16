@@ -73,4 +73,8 @@ dependencies {
     // android.car platform stub, for detecting driving-state UX restrictions
     // on Automotive OS. Never packaged; the real classes come from the OS.
     compileOnly(files("$localSdkDir/platforms/android-35/optional/android.car.jar"))
+
+    // Detects Android Auto (projection) vs Automotive OS (native) connection,
+    // for phones where android.car has no CarUxRestrictionsManager to query.
+    implementation("androidx.car.app:app:1.4.0")
 }

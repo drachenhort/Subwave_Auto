@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.car.app.connection.CarConnection
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -51,14 +53,43 @@ class PlayerViewModel(
     var requiresParkedMode: Boolean by mutableStateOf(false)
         private set
 
+    // Native Automotive OS reports real UX restrictions via android.car; a
+    // phone has no such service to query even while connected to Android
+    // Auto (FEATURE_AUTOMOTIVE is false there), so it's only ever non-null
+    // on an embedded automotive install.
+    private var requiresDistractionOptimization = false
+
+    // On a phone, Android Auto gives no distraction-optimization signal at
+    // all, so treat "connected via projection" as reason enough to require
+    // parked mode - more conservative than gating on actual motion, but the
+    // best signal available from the phone side.
+    private var isAndroidAutoProjectionConnected = false
+
+    private fun refreshRequiresParkedMode() {
+        requiresParkedMode = requiresDistractionOptimization || isAndroidAutoProjectionConnected
+    }
+
     private val carDrivingState: CarDrivingState? =
         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-            CarDrivingState(context) { requiresParkedMode = it }
+            CarDrivingState(context) {
+                requiresDistractionOptimization = it
+                refreshRequiresParkedMode()
+            }
         } else {
             null
         }
 
+    private val carConnection = CarConnection(context)
+    private val carConnectionObserver = Observer<Int> { connectionType ->
+        isAndroidAutoProjectionConnected = connectionType == CarConnection.CONNECTION_TYPE_PROJECTION
+        refreshRequiresParkedMode()
+    }
+
     init {
+        // No LifecycleOwner is available here, so observe for the
+        // ViewModel's own lifetime and remove the observer in onCleared.
+        carConnection.type.observeForever(carConnectionObserver)
+
         // RadioPlaybackService owns ICY (in-stream) metadata handling and
         // republishes it as the current MediaItem's MediaMetadata, which -
         // unlike raw Player.Listener.onMetadata events - is synced to this
@@ -142,6 +173,7 @@ class PlayerViewModel(
     }
 
     override fun onCleared() {
+        carConnection.type.removeObserver(carConnectionObserver)
         carDrivingState?.release()
         super.onCleared()
     }
