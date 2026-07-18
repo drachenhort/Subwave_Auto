@@ -1,7 +1,6 @@
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Properties
-import java.util.TimeZone
 
 plugins {
     id("com.android.application")
@@ -26,9 +25,7 @@ android {
         versionCode = 2
         versionName = "0.2"
 
-        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm").apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }.format(Date())
+        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
