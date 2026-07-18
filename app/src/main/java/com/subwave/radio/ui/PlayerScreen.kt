@@ -91,6 +91,19 @@ fun PlayerScreen(viewModel: PlayerViewModel) {
                 ) {
                     Text("Stop")
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val versionName = remember {
+                    viewModel.contextRef.packageManager
+                        .getPackageInfo(viewModel.contextRef.packageName, 0)
+                        .versionName
+                }
+                Text(
+                    text = "v$versionName (${com.subwave.radio.BuildConfig.BUILD_TIME})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
