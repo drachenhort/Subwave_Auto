@@ -5,12 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Metadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -31,10 +33,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val ANDROID_AUTO_PACKAGE = "com.google.android.projection.gearhead"
+private const val TAG = "RadioPlaybackService"
+private const val MAX_RECONNECT_ATTEMPTS = 5
+private const val RECONNECT_BASE_DELAY_MS = 2_000L
+private const val RECONNECT_MAX_DELAY_MS = 30_000L
 
 /**
  * Single-stream Icecast playback service.
@@ -56,6 +63,8 @@ class RadioPlaybackService : MediaLibraryService() {
     private val metadataLookup = TrackMetadataLookup()
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var hasReceivedTrackMetadata = false
+    private var retryAttempt = 0
+    private var reconnectJob: Job? = null
 
     private val fallbackArtworkUri: Uri by lazy {
         Uri.parse("android.resource://$packageName/${R.drawable.ic_fallback_artwork}")
@@ -215,8 +224,11 @@ class RadioPlaybackService : MediaLibraryService() {
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY && !hasReceivedTrackMetadata) {
-                    applyFallbackNowPlaying()
+                if (state == Player.STATE_READY) {
+                    retryAttempt = 0
+                    if (!hasReceivedTrackMetadata) {
+                        applyFallbackNowPlaying()
+                    }
                 }
             }
 
@@ -227,6 +239,15 @@ class RadioPlaybackService : MediaLibraryService() {
                         entry.title?.takeIf { it.isNotBlank() }?.let(::handleIcyTitle)
                     }
                 }
+            }
+
+            // Icecast connections routinely drop from transient network blips
+            // or a server hiccup - ExoPlayer surfaces that as a fatal error
+            // and stops rather than retrying a live stream on its own. Retry
+            // with backoff instead of leaving the stream silently stopped.
+            override fun onPlayerError(error: PlaybackException) {
+                Log.w(TAG, "Playback error, will attempt to reconnect", error)
+                scheduleReconnect()
             }
         })
 
@@ -241,8 +262,49 @@ class RadioPlaybackService : MediaLibraryService() {
     }
 
     private fun stopPlayback() {
+        // Cancel any pending auto-reconnect so a stream error's retry doesn't
+        // resurrect playback right after an intentional stop (AA disconnect,
+        // power disconnect, user tapping Stop).
+        reconnectJob?.cancel()
+        retryAttempt = 0
         player.stop()
         player.clearMediaItems()
+    }
+
+    private fun scheduleReconnect() {
+        val mediaItem = player.currentMediaItem ?: return
+        if (retryAttempt >= MAX_RECONNECT_ATTEMPTS) {
+            Log.w(TAG, "Giving up after $retryAttempt reconnect attempts")
+            retryAttempt = 0
+            replaceCurrentMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("Connection lost")
+                    .setArtist("Tap Connect to retry")
+                    .setArtworkUri(fallbackArtworkUri)
+                    .build()
+            )
+            return
+        }
+        retryAttempt++
+        val delayMs = (RECONNECT_BASE_DELAY_MS * (1L shl (retryAttempt - 1)))
+            .coerceAtMost(RECONNECT_MAX_DELAY_MS)
+        Log.w(TAG, "Reconnecting in ${delayMs}ms (attempt $retryAttempt/$MAX_RECONNECT_ATTEMPTS)")
+
+        replaceCurrentMetadata(
+            MediaMetadata.Builder()
+                .setTitle("Reconnecting…")
+                .setArtist("Attempt $retryAttempt of $MAX_RECONNECT_ATTEMPTS")
+                .setArtworkUri(fallbackArtworkUri)
+                .build()
+        )
+
+        reconnectJob?.cancel()
+        reconnectJob = serviceScope.launch {
+            delay(delayMs)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
+        }
     }
 
     private fun applyFallbackNowPlaying() {

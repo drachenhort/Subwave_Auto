@@ -3,7 +3,6 @@ package com.subwave.radio.ui
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.widget.Toast
 import androidx.car.app.connection.CarConnection
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +84,14 @@ class PlayerViewModel(
         refreshRequiresParkedMode()
     }
 
+    private var lastAttemptedServer: String? = null
+
+    // ExoPlayer forces STATE_IDLE immediately after a fatal onPlayerError,
+    // before RadioPlaybackService's own retry has a chance to run. Without
+    // this, the IDLE handler below would immediately blank the Failed
+    // message this same error just set.
+    private var isRecoveringFromError = false
+
     init {
         // No LifecycleOwner is available here, so observe for the
         // ViewModel's own lifetime and remove the observer in onCleared.
@@ -104,14 +111,36 @@ class PlayerViewModel(
                 )
             }
 
-            // Keeps the UI in sync if playback is stopped from outside this
-            // ViewModel - e.g. RadioPlaybackService stopping itself when
-            // Android Auto disconnects (phone unplugged from the car).
+            // Keeps the UI in sync if playback is stopped or (re)started from
+            // outside this ViewModel - e.g. RadioPlaybackService stopping
+            // itself when Android Auto disconnects, or recovering from a
+            // stream error on its own.
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_IDLE) {
-                    connectionState = ConnectionState.Idle
-                    nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
+                when (state) {
+                    Player.STATE_READY -> {
+                        connectionState = ConnectionState.Connected
+                        isRecoveringFromError = false
+                        lastAttemptedServer?.let { ServerPrefs.saveLastServer(context, it) }
+                    }
+                    Player.STATE_IDLE -> {
+                        if (isRecoveringFromError) {
+                            isRecoveringFromError = false
+                        } else {
+                            connectionState = ConnectionState.Idle
+                            nowPlaying = NowPlaying(artworkUri = fallbackArtworkUri)
+                        }
+                    }
                 }
+            }
+
+            // Was previously only observed by a one-shot listener in
+            // playFromUserInput that detached itself after the first
+            // successful connection - meaning any later mid-stream error
+            // (e.g. a network blip) went completely unreported, silently
+            // leaving the UI blank with no indication anything went wrong.
+            override fun onPlayerError(error: PlaybackException) {
+                isRecoveringFromError = true
+                connectionState = ConnectionState.Failed(getReadableErrorMessage(error))
             }
         })
     }
@@ -124,6 +153,7 @@ class PlayerViewModel(
             return
         }
 
+        lastAttemptedServer = rawUrl
         connectionState = ConnectionState.Connecting
         nowPlaying = NowPlaying(title = "Loading…", artworkUri = fallbackArtworkUri)
 
@@ -136,23 +166,6 @@ class PlayerViewModel(
                     .build()
             )
             .build()
-
-        player.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) {
-                    connectionState = ConnectionState.Connected
-                    ServerPrefs.saveLastServer(context, rawUrl)
-                    player.removeListener(this)
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                val message = getReadableErrorMessage(error)
-                connectionState = ConnectionState.Failed(message)
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                player.removeListener(this)
-            }
-        })
 
         player.setMediaItem(mediaItem)
         player.prepare()
