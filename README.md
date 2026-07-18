@@ -19,6 +19,10 @@ artwork/track/release year, and supports Android Auto.
 - Android Auto support via Media3 `MediaLibraryService` — single stream,
   no browse menu needed.
 
+## Screenshots
+
+<img src="screenshots/phone.png" alt="Now-playing screen on a phone" width="300">
+
 ## Structure
 
 ```
