@@ -21,7 +21,7 @@ artwork/track/release year, and supports Android Auto.
 
 ## Screenshots
 
-<img src="screenshots/phone.png" alt="Now-playing screen on a phone" width="300">
+<img src="screenshots/phone.png" alt="Now-playing screen on a phone" width="300"> <img src="screenshots/disconnected.png" alt="Disconnected screen with server address entry" width="300">
 
 ## Structure
 
